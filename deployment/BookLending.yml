@@ -1,0 +1,159 @@
+﻿AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation template to deploy BookLendingApplication (.NET
+  Lambda) and DynamoDB.
+
+Parameters:
+  BookLendingApplicationLambdaS3Bucket:
+    Type: String
+    Description: S3 bucket where the BookLendingApplication Lambda deployment package is
+      located.
+  BookLendingApplicationLambdaS3Key:
+    Type: String
+    Description: S3 key (path to the zip file) of the BookLendingApplication Lambda
+      deployment package.
+
+Resources:
+  # DynamoDB Table for BookLendingApplication
+  BooksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: BookLendingApplicationBooks
+      AttributeDefinitions:
+        - AttributeName: BookId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: BookId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+        - Key: Service
+          Value: BookLendingApplication
+
+  # IAM Role for the Lambda Function
+  BookLendingApplicationLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !Sub ${BooksTable.Arn}
+
+  # AWS Lambda Function
+  BookLendingApplicationLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: BookLendingLambdaFunction
+      Handler: BookLendingApplication::BookLendingApplication.LambdaEntryPoint::FunctionHandlerAsync # Adjust based on your project structure
+      Runtime: dotnet8 # Or dotnet6, dotnet7 depending on your .NET version
+      Role: !Sub ${BookLendingApplicationLambdaRole.Arn}
+      Code:
+        S3Bucket: "elasticbeanstalk-ap-south-1-132690414015"
+        S3Key: "BookLendingService/AWSDeploymentArchive_BookLendingService_v20251107112516.zip"
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref BooksTable
+
+  # API Gateway to expose the Lambda Function
+  BookLendingApplicationApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: BookLendingApplicationAPI
+      Description: API Gateway for the BookLendingApplication .NET Lambda function.
+
+  # API Gateway Resource for Books
+  BooksResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Sub ${BookLendingApplicationApi.RootResourceId}
+      PathPart: books
+      RestApiId: !Ref BookLendingApplicationApi
+
+  # API Gateway Method for GET (Read all or specific)
+  GetBooksMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      ResourceId: !Ref BooksResource
+      RestApiId: !Ref BookLendingApplicationApi
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BookLendingApplicationLambdaFunction.Arn}/invocations
+
+  # API Gateway Method for POST (Create)
+  PostBooksMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      ResourceId: !Ref BooksResource
+      RestApiId: !Ref BookLendingApplicationApi
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BookLendingApplicationLambdaFunction.Arn}/invocations
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - GetBooksMethod
+      - PostBooksMethod # Add other methods here as you define them (PUT, DELETE)
+    Properties:
+      RestApiId: !Ref BookLendingApplicationApi
+      Description: Initial deployment of the BookLendingApplication API.
+
+  # API Gateway Stage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: Prod
+      Description: Production stage for BookLendingApplication API.
+      RestApiId: !Ref BookLendingApplicationApi
+      DeploymentId: !Ref ApiDeployment
+
+  # Permissions for API Gateway to invoke Lambda
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt BookLendingApplicationLambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BookLendingApplicationApi}/*/*
+
+Outputs:
+  DynamoDBTableName:
+    Description: Name of the DynamoDB table.
+    Value: !Ref BooksTable
+  LambdaFunctionName:
+    Description: Name of the Lambda function.
+    Value: !Ref BookLendingApplicationLambdaFunction
+  ServiceEndpoint:
+    Description: The URL of the BookLendingApplication API Gateway endpoint.
+    Value: !Sub https://${BookLendingApplicationApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/books
