@@ -15,9 +15,9 @@ POST /api/Books/{id}/return - Return a book
 
 ## Database Configuration
 
-Local Development uses In-Memory database
+### Local Development uses In-Memory database   
 
-Production deployment uses AWS DynamoDB database
+### Production deployment uses AWS DynamoDB database
 
 ## Environment Variables
 
@@ -81,11 +81,11 @@ AWS.Region: your-aws-region
 
     
 ## Unit Tests Coverage
-# Open BookLendingApplication.Tests/StrykerOutput/{latest-dated-report}/reports/mutation-report.html
+### Open BookLendingApplication.Tests/StrykerOutput/{latest-dated-report}/reports/mutation-report.html
 Test Coverage: 80.77%
 Total Tests: 30
 
-# Coverage by Component
+### Coverage by Component
 Controller Tests: API endpoint testing with mocked services
 Service Tests: Business logic testing with mocked repositories
 Repository Tests: In memory data access testing
@@ -95,19 +95,19 @@ Integration Tests: End-to-end API testing
 
 
 ## Technologies
-# Backend
+### Backend
     Framework: ASP.NET Core 8.0
     Database: DynamoDB (AWS) / In-Memory (Local)
     Architecture: Clean Architecture with Repository Pattern
-# AWS Services
+### AWS Services
     Compute: AWS Lambda
     API: API Gateway
     Database: DynamoDB
     Storage: S3 (deployment packages)
-# Testing
+### Testing
     Framework: nUnit
     Mocking: fakeiteasy
-# DevOps
+### DevOps
     CI/CD: GitHub Actions
     Infrastructure: CloudFormation
     Packaging: AWS Lambda Tools
@@ -117,7 +117,7 @@ Integration Tests: End-to-end API testing
 
 
 ## API Documentation
-# Swagger/OpenAPI
+### Swagger/OpenAPI
     JSON: deployment/swagger.json
     Interactive UI: Available at /swagger endpoint during development
 
