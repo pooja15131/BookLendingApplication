@@ -21,11 +21,12 @@ POST /api/Books/{id}/return - Return a book
 
 ## Environment Variables
 
-# Local Development (automatically uses in-memory DB)
+### Local Development (automatically uses in-memory DB)
 ASPNETCORE_ENVIRONMENT=Development
 
-# Production (configure for DynamoDB)
+### Production (configure for DynamoDB)
 AWS.Profile: your-aws-profile-name
+
 AWS.Region: your-aws-region
 
 ---
