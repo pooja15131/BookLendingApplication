@@ -201,9 +201,10 @@ namespace BookLendingApplication.Tests.Controllers
             A.CallTo(() => _bookService.GetBookByIdAsync(A<Guid>.Ignored)).Returns(Task.FromResult<Book?>(book));
 
             var result = await _controller.CheckOutBook(book.Id) as BadRequestObjectResult;
+            var response = result!.Value as ApiResponse<Book>;
 
             Assert.That(result, Is.Not.Null);
-            Assert.That(result.Value, Is.EqualTo("Book not available for checkout."));
+            Assert.That(response!.Error, Is.EqualTo("Book not available for checkout."));
         }
 
         /// <summary>

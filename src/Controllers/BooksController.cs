@@ -118,7 +118,7 @@ public class BooksController : ControllerBase
                 return NotFound(ApiResponse<Book>.Failure("Book does not exist in records. Please verify Id again."));
             }
 
-            if (!book.IsAvailable) return BadRequest("Book not available for checkout.");
+            if (!book.IsAvailable) return BadRequest(ApiResponse<Book>.Failure("Book not available for checkout."));
 
             var updatedBook = await _bookService.CheckoutAsync(book);
             if (updatedBook == null)
