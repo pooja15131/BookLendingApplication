@@ -29,7 +29,7 @@ public class ApiResponse<T>
     /// Failure response
     /// </summary>
     /// <param name="error">error details</param>
-    /// <param name="message"message></param>
+    /// <param name="message">message</param>
     /// <param name="code">status code</param>
     /// <returns></returns>
     public static ApiResponse<T> Failure(string error, string message = "Error", int code = 400)

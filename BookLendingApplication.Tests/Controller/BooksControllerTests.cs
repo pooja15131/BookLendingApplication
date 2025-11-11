@@ -127,9 +127,10 @@ namespace BookLendingApplication.Tests.Controllers
             A.CallTo(() => _bookService.GetBookByIdAsync(A<Guid>.Ignored)).Returns(Task.FromResult<Book?>(book));
 
             var result = await _controller.AddBook(book) as BadRequestObjectResult;
+            var response = result!.Value as ApiResponse<Book>;
 
             Assert.That(result, Is.Not.Null);
-            Assert.That(result.Value, Is.EqualTo("Book Id already available in records. Please provide different Id"));
+            Assert.That(response!.Error, Is.EqualTo("Book Id already available in records. Please provide different Id"));
         }
 
         /// <summary>
@@ -183,9 +184,10 @@ namespace BookLendingApplication.Tests.Controllers
             A.CallTo(() => _bookService.GetBookByIdAsync(A<Guid>.Ignored)).Returns(Task.FromResult<Book?>(null));
 
             var result = await _controller.CheckOutBook(id) as NotFoundObjectResult;
+            var response = result!.Value as ApiResponse<Book>;
 
             Assert.That(result, Is.Not.Null);
-            Assert.That(result.Value, Is.EqualTo("Book does not exist in records. Please verify Id again."));
+            Assert.That(response!.Error, Is.EqualTo("Book does not exist in records. Please verify Id again."));
         }
 
         /// <summary>
@@ -272,9 +274,10 @@ namespace BookLendingApplication.Tests.Controllers
             A.CallTo(() => _bookService.GetBookByIdAsync(A<Guid>.Ignored)).Returns(Task.FromResult<Book?>(null));
 
             var result = await _controller.ReturnBook(id) as NotFoundObjectResult;
+            var response = result!.Value as ApiResponse<Book>;
 
             Assert.That(result, Is.Not.Null);
-            Assert.That(result.Value, Is.EqualTo("Book does not exist in records. Please re-try with correct book Id."));
+            Assert.That(response!.Error, Is.EqualTo("Book does not exist in records. Please re-try with correct book Id."));
         }
 
         /// <summary>

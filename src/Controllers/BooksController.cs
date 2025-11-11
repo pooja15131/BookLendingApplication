@@ -85,7 +85,7 @@ public class BooksController : ControllerBase
             var bookAvailable = await BookExists(book.Id);
             if (bookAvailable != null)
             {
-                return BadRequest("Book Id already available in records. Please provide different Id");
+                return BadRequest(ApiResponse<Book>.Failure("Book Id already available in records. Please provide different Id"));
             }
 
             var newBook = await _bookService.AddBookAsync(book);
@@ -115,7 +115,7 @@ public class BooksController : ControllerBase
             var book = await BookExists(id);
             if (book == null)
             {
-                return NotFound("Book does not exist in records. Please verify Id again.");
+                return NotFound(ApiResponse<Book>.Failure("Book does not exist in records. Please verify Id again."));
             }
 
             if (!book.IsAvailable) return BadRequest("Book not available for checkout.");
@@ -148,7 +148,7 @@ public class BooksController : ControllerBase
             var book = await BookExists(id);
             if (book == null)
             {
-                return NotFound("Book does not exist in records. Please re-try with correct book Id.");
+                return NotFound(ApiResponse<Book>.Failure("Book does not exist in records. Please re-try with correct book Id."));
             }
 
             var updatedBook = await _bookService.ReturnAsync(book);
