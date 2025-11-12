@@ -1,0 +1,126 @@
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+ 
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '8.0.x'
+ 
+stages:
+- stage: Test
+  displayName: 'Test Stage'
+  jobs:
+  - job: Test
+    displayName: 'Run Tests'
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET $(dotnetVersion)'
+      inputs:
+        packageType: 'sdk'
+        version: '$(dotnetVersion)'
+ 
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore packages'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+ 
+    - task: DotNetCoreCLI@2
+      displayName: 'Build application'
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+        arguments: '--configuration $(buildConfiguration) --no-restore'
+ 
+    - task: DotNetCoreCLI@2
+      displayName: 'Run tests'
+      inputs:
+        command: 'test'
+        projects: '**/*Tests.csproj'
+        arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage"'
+ 
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(Agent.TempDirectory)/**/coverage.cobertura.xml'
+ 
+- stage: Build
+  displayName: 'Build and Package'
+  dependsOn: Test
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+  jobs:
+  - job: Build
+    displayName: 'Build Lambda Package'
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET $(dotnetVersion)'
+      inputs:
+        packageType: 'sdk'
+        version: '$(dotnetVersion)'
+ 
+    - task: DotNetCoreCLI@2
+      displayName: 'Install Lambda Tools'
+      inputs:
+        command: 'custom'
+        custom: 'tool'
+        arguments: 'install -g Amazon.Lambda.Tools'
+ 
+    - task: DotNetCoreCLI@2
+      displayName: 'Package Lambda Function'
+      inputs:
+        command: 'custom'
+        custom: 'lambda'
+        arguments: 'package --configuration $(buildConfiguration) --framework net8.0 --output-package $(Build.ArtifactStagingDirectory)/lambda-package.zip'
+        workingDirectory: 'src'
+ 
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'lambda-package'
+ 
+- stage: Deploy
+  displayName: 'Deploy to AWS'
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+  jobs:
+  - deployment: DeployToAWS
+    displayName: 'Deploy Lambda to AWS'
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Download artifacts'
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'lambda-package'
+              downloadPath: '$(System.ArtifactsDirectory)'
+ 
+          - task: AWSCLI@1
+            displayName: 'Upload to S3'
+            inputs:
+              awsCredentials: 'AWS-Connection'
+              regionName: '$(AWS_REGION)'
+              awsCommand: 's3'
+              awsSubCommand: 'cp'
+              awsArguments: '$(System.ArtifactsDirectory)/lambda-package/lambda-package.zip s3://$(S3_BUCKET)/$(S3_KEY)'
+ 
+          - task: AWSCloudFormation@1
+            displayName: 'Deploy CloudFormation'
+            inputs:
+              awsCredentials: 'AWS-Connection'
+              regionName: '$(AWS_REGION)'
+              actionType: 'createOrUpdateStack'
+              stackName: 'book-lending-app'
+              templateSource: 'file'
+              templateFile: 'deployment/BookLending.yml'
+              capabilityIAM: true
+              parameterOverrides: |
+                BookLendingApplicationLambdaS3Bucket=$(S3_BUCKET)
+                BookLendingApplicationLambdaS3Key=$(S3_KEY)
