@@ -19,11 +19,27 @@ Resources:
     Properties:
       TableName: BookLendingApplicationBooks
       AttributeDefinitions:
-        - AttributeName: BookId
-          AttributeType: S
+        - AttributeName: Id
+          AttributeType: S      
+        - AttributeName: Name
+          AttributeType: S      
+        - AttributeName: IsAvailable
+          AttributeType: S      
       KeySchema:
-        - AttributeName: BookId
+        - AttributeName: Id
           KeyType: HASH
+        - AttributeName: "Name"
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: "GSI"
+          KeySchema:            
+            - AttributeName: "IsAvailable"
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
@@ -66,12 +82,12 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: BookLendingLambdaFunction
-      Handler: BookLendingApplication::BookLendingApplication.LambdaEntryPoint::FunctionHandlerAsync # Adjust based on your project structure
-      Runtime: dotnet8 # Or dotnet6, dotnet7 depending on your .NET version
+      Handler: BookLendingApplication::BookLendingApplication.LambdaEntryPoint::FunctionHandlerAsync
+      Runtime: dotnet8
       Role: !Sub ${BookLendingApplicationLambdaRole.Arn}
       Code:
-        S3Bucket: "elasticbeanstalk-ap-south-1-132690414015"
-        S3Key: "BookLendingService/AWSDeploymentArchive_BookLendingService_v20251107112516.zip"
+        S3Bucket: !Ref BookLendingApplicationLambdaS3Bucket 
+        S3Key: !Ref BookLendingApplicationLambdaS3Key
       MemorySize: 256
       Timeout: 30
       Environment:
@@ -124,7 +140,7 @@ Resources:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - GetBooksMethod
-      - PostBooksMethod # Add other methods here as you define them (PUT, DELETE)
+      - PostBooksMethod 
     Properties:
       RestApiId: !Ref BookLendingApplicationApi
       Description: Initial deployment of the BookLendingApplication API.
