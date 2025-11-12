@@ -6,8 +6,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BookLendingApplication", "s
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "deployment", "deployment", "{D1234567-89AB-CDEF-0123-456789ABCDEF}"
 	ProjectSection(SolutionItems) = preProject
+		deployment\azure-pipelines.yaml = deployment\azure-pipelines.yaml
 		deployment\BookLending.yml = deployment\BookLending.yml
-		azure-pipelines.yaml = azure-pipelines.yaml
 		deployment\swagger.json = deployment\swagger.json
 	EndProjectSection
 EndProject
