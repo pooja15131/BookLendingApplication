@@ -34,14 +34,16 @@ public class Book
     /// Author of the book
     /// </summary>
     [DynamoDBProperty("Author")]
-    [StringLength(200, ErrorMessage = "Author name cannot exceed 200 characters.")]
+    [Required(ErrorMessage = "Author is required.")]
+    [StringLength(200, MinimumLength = 1, ErrorMessage = "Author name must be between 1 and 200 characters.")]
     public string Author { get; set; } = string.Empty;
 
     /// <summary>
     /// ISBN number of the book
     /// </summary>
     [DynamoDBProperty("ISBN")]
-    [RegularExpression(@"^(97[89])?[0-9]{9}[0-9X]$", ErrorMessage = "Invalid ISBN format. Use 10 or 13 digit ISBN without hyphens.")]
+    [Required(ErrorMessage = "ISBN is required.")]
+    [RegularExpression(@"^(?:ISBN(?:-1[03])?:? )?(?=[0-9X]{10}$|(?=(?:[0-9]+[- ]){3})[- 0-9X]{13}$|97[89][0-9]{10}$|(?=(?:[0-9]+[- ]){4})[- 0-9]{17}$)(?:97[89][- ]?)?[0-9]{1,5}[- ]?[0-9]+[- ]?[0-9]+[- ]?[0-9X]$", ErrorMessage = "Invalid ISBN format.")]
     public string ISBN { get; set; } = string.Empty;
 
     /// <summary>

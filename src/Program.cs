@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
 using BookLendingApplication.Repositories;
 using BookLendingApplication.Services;
+using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics.CodeAnalysis;
 
 namespace BookLendingApplication;
@@ -37,9 +38,26 @@ public class Startup
 
     public void ConfigureServices(IServiceCollection services)
     {
-        services.AddControllers();
+        services.AddControllers()
+        .ConfigureApiBehaviorOptions(options =>
+        {
+            options.InvalidModelStateResponseFactory = context =>
+            {
+                var errors = context.ModelState
+                    .Where(x => x.Value.Errors.Count > 0)
+                    .SelectMany(x => x.Value.Errors.Select(e => e.ErrorMessage))
+                    .ToList();
+                var response = new
+                {
+                    Code = 400,
+                    Message = "Validation failed",
+                    Data = (object?)null,
+                    Error = string.Join("; ", errors)
+                };
+                return new BadRequestObjectResult(response);
+            };
+        });
         services.AddEndpointsApiExplorer();
-        
         // Add CORS
         services.AddCors(options =>
         {
@@ -50,10 +68,8 @@ public class Startup
                        .AllowAnyHeader();
             });
         });
-        
         // Add Health Checks
         services.AddHealthChecks();
-        
         services.AddSwaggerGen(c =>
         {
             c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo

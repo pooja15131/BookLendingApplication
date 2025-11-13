@@ -9,16 +9,18 @@ namespace BookLendingApplication.Repositories
     /// </summary>
     public class InMemoryBookRepository : IBookRepository
     {
-        private readonly ConcurrentDictionary<Guid, Book> _books = new();
+        private readonly ConcurrentDictionary<Guid, Book> _books = new ConcurrentDictionary<Guid, Book>();
         private const string CacheKey = "InMemoryBookRepository_Books";
         private readonly IMemoryCache _cache;
+        private static readonly object _lockObject = new();
 
         public InMemoryBookRepository(IMemoryCache memoryCache)
         {
             _cache = memoryCache;
-          
-            _books = _cache.Get<ConcurrentDictionary<Guid, Book>>(CacheKey) ?? new ConcurrentDictionary<Guid, Book>();
-            _cache.Set(CacheKey, _books, TimeSpan.FromMinutes(10));
+            lock (_lockObject)
+            {
+                _books = _cache.GetOrCreate(CacheKey, _ => new ConcurrentDictionary<Guid, Book>())!;
+            }
         }
 
         /// <summary>
@@ -43,7 +45,7 @@ namespace BookLendingApplication.Repositories
         /// <returns>Returns book added/updated</returns>
         public Task<Book?> SaveAsync(Book book)
         {
-            _books.AddOrUpdate(book.Id, book, (key, existing) => 
+            _books.AddOrUpdate(book.Id, book, (key, existing) =>
             {
                 existing.Name = book.Name;
                 existing.Author = book.Author;
@@ -53,7 +55,6 @@ namespace BookLendingApplication.Repositories
                 existing.CheckoutDate = book.CheckoutDate;
                 return existing;
             });
-            
             return Task.FromResult(_books.TryGetValue(book.Id, out var savedBook) ? savedBook : null);
         }
     }

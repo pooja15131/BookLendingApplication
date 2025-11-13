@@ -1,6 +1,7 @@
 using BookLendingApplication.Models;
 using BookLendingApplication.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
 
 namespace BookLendingApplication.Controllers;
 
@@ -40,7 +41,7 @@ public class BooksController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred while retrieving books");
-            return StatusCode(500, ApiResponse<IEnumerable<Book>>.Failure("An error occurred while retrieving books", "Failed to retrieve books", 500));
+            return StatusCode((int)HttpStatusCode.InternalServerError, ApiResponse<IEnumerable<Book>>.Failure("An error occurred while retrieving books", "Failed to retrieve books", 500));
         }
     }
 
