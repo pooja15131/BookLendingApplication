@@ -39,6 +39,21 @@ public class Startup
     {
         services.AddControllers();
         services.AddEndpointsApiExplorer();
+        
+        // Add CORS
+        services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(builder =>
+            {
+                builder.AllowAnyOrigin()
+                       .AllowAnyMethod()
+                       .AllowAnyHeader();
+            });
+        });
+        
+        // Add Health Checks
+        services.AddHealthChecks();
+        
         services.AddSwaggerGen(c =>
         {
             c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
@@ -55,8 +70,6 @@ public class Startup
 
         services.AddMemoryCache();
 
-        var builder = WebApplication.CreateBuilder();
-
         // Use CurrentEnvironment instead of env
         if (CurrentEnvironment.IsDevelopment())
         {
@@ -64,7 +77,7 @@ public class Startup
         }
         else
         {
-            var awsOptions = builder.Configuration.GetAWSOptions();
+            var awsOptions = Configuration.GetAWSOptions();
             services.AddDefaultAWSOptions(awsOptions);
             services.AddAWSService<IAmazonDynamoDB>();
             services.AddScoped<IDynamoDBContext, DynamoDBContext>();
@@ -95,10 +108,12 @@ public class Startup
             });
         }
 
+        app.UseCors();
         app.UseRouting();
         app.UseEndpoints(endpoints =>
         {
             endpoints.MapControllers();
+            endpoints.MapHealthChecks("/health");
             endpoints.MapGet("/", async context =>
             {
                 await context.Response.WriteAsync("Welcome to Book Lending Application");

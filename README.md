@@ -34,10 +34,11 @@ AWS.Region: your-aws-region
 ## How to Run the App Locally
 
 ### Prerequisites
-- [.NET 6.0 SDK or later](https://dotnet.microsoft.com/download)
+- [.NET 8.0 SDK or later](https://dotnet.microsoft.com/download)
+- [Docker](https://www.docker.com/get-started) (for containerized deployment)
 - (Optional) [AWS CLI](https://aws.amazon.com/cli/) and credentials if you want to use DynamoDB locally
 
-### Steps
+### Option 1: Run with .NET CLI
 
 1. **Clone the repository from below path** 
 
@@ -55,6 +56,21 @@ AWS.Region: your-aws-region
     - API available at http://localhost:5000/swagger
         
 6. **Run tests**
+
+### Option 2: Run with Docker
+
+1. **Build Docker image**
+    ```bash
+    docker build -t book-lending-app .
+    ```
+
+2. **Run Docker container**
+    ```bash
+    docker run -p 8080:80 book-lending-app
+    ```
+
+3. **Access the API**
+    - API available at http://localhost:8080/swagger
 
     
 

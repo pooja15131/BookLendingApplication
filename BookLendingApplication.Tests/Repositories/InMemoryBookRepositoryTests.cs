@@ -27,6 +27,12 @@ namespace BookLendingApplication.Tests.Repositories
         public void SetUp()
         {
             _fakeCache = A.Fake<IMemoryCache>();
+            
+            // Mock cache TryGetValue to return false (no cached data)
+            object? cachedValue;
+            A.CallTo(() => _fakeCache.TryGetValue(A<object>._, out cachedValue))
+                .Returns(false);
+            
             _repository = new InMemoryBookRepository(_fakeCache);
         }
 
@@ -100,12 +106,32 @@ namespace BookLendingApplication.Tests.Repositories
             var newBook = await _repository.SaveAsync(book); // add new book
 
             newBook!.IsAvailable = false;
+            newBook.Name = "Updated Test";
             var updatedBook = await _repository.SaveAsync(newBook); // update book
 
             Assert.That(updatedBook, Is.Not.Null);
+            Assert.That(updatedBook.Name, Is.EqualTo("Updated Test"));
+            Assert.That(updatedBook.IsAvailable, Is.EqualTo(false));
+        }
 
-            Assert.That(updatedBook.Name, Is.EqualTo(newBook.Name));
-            Assert.That(updatedBook.IsAvailable, Is.EqualTo(newBook.IsAvailable));
+        /// <summary>
+        /// Test to verify GetAllAsync returns all saved books
+        /// </summary>
+        /// <returns></returns>
+        [Test]
+        public async Task GetAllAsync_ReturnsAllBooks_WhenMultipleExist()
+        {
+            var book1 = new Book { Id = Guid.NewGuid(), Name = "Book 1", IsAvailable = true };
+            var book2 = new Book { Id = Guid.NewGuid(), Name = "Book 2", IsAvailable = false };
+            
+            await _repository.SaveAsync(book1);
+            await _repository.SaveAsync(book2);
+
+            var result = await _repository.GetAllAsync();
+
+            Assert.That(result.Count(), Is.EqualTo(2));
+            Assert.That(result.Any(b => b.Name == "Book 1"), Is.True);
+            Assert.That(result.Any(b => b.Name == "Book 2"), Is.True);
         }
     }
 }

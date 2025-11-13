@@ -3,6 +3,7 @@ using BookLendingApplication.Models;
 using BookLendingApplication.Services;
 using FakeItEasy;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace BookLendingApplication.Tests.Controllers
 {
@@ -13,13 +14,15 @@ namespace BookLendingApplication.Tests.Controllers
     public class BooksControllerTests
     {
         private IBookService _bookService;
+        private ILogger<BooksController> _logger;
         private BooksController _controller;
 
         [SetUp]
         public void SetUp()
         {
             _bookService = A.Fake<IBookService>();
-            _controller = new BooksController(_bookService);
+            _logger = A.Fake<ILogger<BooksController>>();
+            _controller = new BooksController(_bookService, _logger);
         }
 
         /// <summary>
@@ -69,7 +72,7 @@ namespace BookLendingApplication.Tests.Controllers
             var book = new Book { Id = Guid.NewGuid(), Name = "Test", IsAvailable = true };
             A.CallTo(() => _bookService.GetBookByIdAsync(A<Guid>.Ignored)).Returns(Task.FromResult<Book?>(book));
 
-            var result = (OkObjectResult)await _controller.GetBook(book.Id);
+            var result = await _controller.GetBook(book.Id) as OkObjectResult;
 
             Assert.That(result, Is.Not.Null);
             var response = result.Value as ApiResponse<Book>;
@@ -95,6 +98,21 @@ namespace BookLendingApplication.Tests.Controllers
             Assert.That(response, Is.Not.Null);
             Assert.That(response.Message, Is.EqualTo("Book not found"));
             Assert.That(response.Code, Is.EqualTo(404));
+        }
+
+        /// <summary>
+        /// Test to verify GetBook returns BadRequest for empty Guid
+        /// </summary>
+        /// <returns></returns>
+        [Test]
+        public async Task GetBook_ReturnsBadRequest_WhenEmptyGuid()
+        {
+            var result = await _controller.GetBook(Guid.Empty) as BadRequestObjectResult;
+
+            Assert.That(result, Is.Not.Null);
+            var response = result.Value as ApiResponse<Book>;
+            Assert.That(response, Is.Not.Null);
+            Assert.That(response.Message, Is.EqualTo("Validation failed"));
         }
 
         /// <summary>
@@ -216,14 +234,14 @@ namespace BookLendingApplication.Tests.Controllers
         {
             var book = new Book { Id = Guid.NewGuid(), Name = "Test", IsAvailable = true };
             A.CallTo(() => _bookService.GetBookByIdAsync(A<Guid>.Ignored)).Returns(Task.FromResult<Book?>(book));
-            A.CallTo(() => _bookService.CheckoutAsync(book)).Returns(Task.FromResult<Book>(null));
+            A.CallTo(() => _bookService.CheckoutAsync(book)).Throws(new InvalidOperationException("Failed to checkout book"));
 
             var result = await _controller.CheckOutBook(book.Id) as BadRequestObjectResult;
 
             Assert.That(result, Is.Not.Null);
             var response = result.Value as ApiResponse<Book>;
             Assert.That(response, Is.Not.Null);
-            Assert.That(response.Message, Is.EqualTo("Checkout failed"));
+            Assert.That(response.Message, Is.EqualTo("Failed to checkout book."));
         }
 
         /// <summary>
@@ -234,8 +252,9 @@ namespace BookLendingApplication.Tests.Controllers
         public async Task CheckOutBook_ReturnsOk_WhenCheckoutSucceeds()
         {
             var book = new Book { Id = Guid.NewGuid(), Name = "Test", IsAvailable = true };
+            var checkedOutBook = new Book { Id = book.Id, Name = "Test", IsAvailable = false, CheckoutDate = DateTime.UtcNow };
             A.CallTo(() => _bookService.GetBookByIdAsync(A<Guid>.Ignored)).Returns(Task.FromResult<Book?>(book));
-            A.CallTo(() => _bookService.CheckoutAsync(book)).Returns(Task.FromResult(book));
+            A.CallTo(() => _bookService.CheckoutAsync(book)).Returns(Task.FromResult(checkedOutBook));
 
             var result = await _controller.CheckOutBook(book.Id) as OkObjectResult;
 
@@ -243,6 +262,22 @@ namespace BookLendingApplication.Tests.Controllers
             var response = result.Value as ApiResponse<Book>;
             Assert.That(response, Is.Not.Null);
             Assert.That(response.Message, Is.EqualTo("Book checked out successfully."));
+            Assert.That(response!.Data!.IsAvailable, Is.False);
+        }
+
+        /// <summary>
+        /// Test to verify CheckOutBook returns BadRequest for empty Guid
+        /// </summary>
+        /// <returns></returns>
+        [Test]
+        public async Task CheckOutBook_ReturnsBadRequest_WhenEmptyGuid()
+        {
+            var result = await _controller.CheckOutBook(Guid.Empty) as BadRequestObjectResult;
+
+            Assert.That(result, Is.Not.Null);
+            var response = result.Value as ApiResponse<Book>;
+            Assert.That(response, Is.Not.Null);
+            Assert.That(response.Message, Is.EqualTo("Validation failed"));
         }
 
         /// <summary>
@@ -290,14 +325,14 @@ namespace BookLendingApplication.Tests.Controllers
         {
             var book = new Book { Id = Guid.NewGuid(), Name = "Test", IsAvailable = false };
             A.CallTo(() => _bookService.GetBookByIdAsync(A<Guid>.Ignored)).Returns(Task.FromResult<Book?>(book));
-            A.CallTo(() => _bookService.ReturnAsync(book)).Returns(Task.FromResult<Book>(null));
+            A.CallTo(() => _bookService.ReturnAsync(book)).Throws(new InvalidOperationException("Failed to return book"));
 
             var result = await _controller.ReturnBook(book.Id) as BadRequestObjectResult;
 
             Assert.That(result, Is.Not.Null);
             var response = result.Value as ApiResponse<Book>;
             Assert.That(response, Is.Not.Null);
-            Assert.That(response.Message, Is.EqualTo("Return failed."));
+            Assert.That(response.Message, Is.EqualTo("Failed to return book."));
         }
 
         /// <summary>
@@ -319,6 +354,39 @@ namespace BookLendingApplication.Tests.Controllers
             Assert.That(response, Is.Not.Null);
             Assert.That(response.Message, Is.EqualTo("Book returned successfully."));
             Assert.That(response!.Data!.IsAvailable, Is.True);
+        }
+
+        /// <summary>
+        /// Test to verify ReturnBook returns BadRequest for empty Guid
+        /// </summary>
+        /// <returns></returns>
+        [Test]
+        public async Task ReturnBook_ReturnsBadRequest_WhenEmptyGuid()
+        {
+            var result = await _controller.ReturnBook(Guid.Empty) as BadRequestObjectResult;
+
+            Assert.That(result, Is.Not.Null);
+            var response = result.Value as ApiResponse<Book>;
+            Assert.That(response, Is.Not.Null);
+            Assert.That(response.Message, Is.EqualTo("Validation failed"));
+        }
+
+        /// <summary>
+        /// Test to verify ReturnBook returns BadRequest when book is already available
+        /// </summary>
+        /// <returns></returns>
+        [Test]
+        public async Task ReturnBook_ReturnsBadRequest_WhenBookAlreadyAvailable()
+        {
+            var book = new Book { Id = Guid.NewGuid(), Name = "Test", IsAvailable = true };
+            A.CallTo(() => _bookService.GetBookByIdAsync(A<Guid>.Ignored)).Returns(Task.FromResult<Book?>(book));
+
+            var result = await _controller.ReturnBook(book.Id) as BadRequestObjectResult;
+
+            Assert.That(result, Is.Not.Null);
+            var response = result.Value as ApiResponse<Book>;
+            Assert.That(response, Is.Not.Null);
+            Assert.That(response.Error, Is.EqualTo("Book is already available and was not checked out."));
         }
 
         /// <summary>

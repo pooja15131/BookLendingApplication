@@ -1,7 +1,7 @@
 ﻿AWSTemplateFormatVersion: '2010-09-09'
 Description: AWS CloudFormation template to deploy BookLendingApplication (.NET
   Lambda) and DynamoDB.
-
+ 
 Parameters:
   BookLendingApplicationLambdaS3Bucket:
     Type: String
@@ -11,42 +11,24 @@ Parameters:
     Type: String
     Description: S3 key (path to the zip file) of the BookLendingApplication Lambda
       deployment package.
-
+ 
 Resources:
   # DynamoDB Table for BookLendingApplication
   BooksTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: BookLendingApplicationBooks
+      TableName: Books
       AttributeDefinitions:
         - AttributeName: Id
-          AttributeType: S      
-        - AttributeName: Name
-          AttributeType: S      
-        - AttributeName: IsAvailable
-          AttributeType: S      
+          AttributeType: S
       KeySchema:
         - AttributeName: Id
           KeyType: HASH
-        - AttributeName: "Name"
-          KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: "GSI"
-          KeySchema:            
-            - AttributeName: "IsAvailable"
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-          ProvisionedThroughput:
-            ReadCapacityUnits: 5
-            WriteCapacityUnits: 5
-      ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
+      BillingMode: PAY_PER_REQUEST
       Tags:
         - Key: Service
           Value: BookLendingApplication
-
+ 
   # IAM Role for the Lambda Function
   BookLendingApplicationLambdaRole:
     Type: AWS::IAM::Role
@@ -76,7 +58,7 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:Scan
                 Resource: !Sub ${BooksTable.Arn}
-
+ 
   # AWS Lambda Function
   BookLendingApplicationLambdaFunction:
     Type: AWS::Lambda::Function
@@ -93,58 +75,140 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref BooksTable
-
+ 
   # API Gateway to expose the Lambda Function
   BookLendingApplicationApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: BookLendingApplicationAPI
       Description: API Gateway for the BookLendingApplication .NET Lambda function.
-
-  # API Gateway Resource for Books
-  BooksResource:
+ 
+  # API Gateway Resource for API
+  ApiResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       ParentId: !Sub ${BookLendingApplicationApi.RootResourceId}
+      PathPart: api
+      RestApiId: !Ref BookLendingApplicationApi
+ 
+  # API Gateway Resource for V1
+  V1Resource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref ApiResource
+      PathPart: v1
+      RestApiId: !Ref BookLendingApplicationApi
+ 
+  # API Gateway Resource for Books under /api/v1
+  ApiBooksResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref V1Resource
       PathPart: books
       RestApiId: !Ref BookLendingApplicationApi
-
-  # API Gateway Method for GET (Read all or specific)
+ 
+  # API Gateway Resource for Book ID
+  BookIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref ApiBooksResource
+      PathPart: '{id}'
+      RestApiId: !Ref BookLendingApplicationApi
+ 
+  # API Gateway Resource for Checkout
+  CheckoutResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref BookIdResource
+      PathPart: checkout
+      RestApiId: !Ref BookLendingApplicationApi
+ 
+  # API Gateway Resource for Return
+  ReturnResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref BookIdResource
+      PathPart: return
+      RestApiId: !Ref BookLendingApplicationApi
+ 
+  # API Gateway Method for GET all books
   GetBooksMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       HttpMethod: GET
-      ResourceId: !Ref BooksResource
+      ResourceId: !Ref ApiBooksResource
       RestApiId: !Ref BookLendingApplicationApi
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BookLendingApplicationLambdaFunction.Arn}/invocations
-
+ 
+  # API Gateway Method for GET specific book
+  GetBookMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      ResourceId: !Ref BookIdResource
+      RestApiId: !Ref BookLendingApplicationApi
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BookLendingApplicationLambdaFunction.Arn}/invocations
+ 
   # API Gateway Method for POST (Create)
   PostBooksMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       HttpMethod: POST
-      ResourceId: !Ref BooksResource
+      ResourceId: !Ref ApiBooksResource
       RestApiId: !Ref BookLendingApplicationApi
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BookLendingApplicationLambdaFunction.Arn}/invocations
-
+ 
+  # API Gateway Method for POST checkout
+  PostCheckoutMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      ResourceId: !Ref CheckoutResource
+      RestApiId: !Ref BookLendingApplicationApi
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BookLendingApplicationLambdaFunction.Arn}/invocations
+ 
+  # API Gateway Method for POST return
+  PostReturnMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      ResourceId: !Ref ReturnResource
+      RestApiId: !Ref BookLendingApplicationApi
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BookLendingApplicationLambdaFunction.Arn}/invocations
+ 
   # API Gateway Deployment
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - GetBooksMethod
-      - PostBooksMethod 
+      - GetBookMethod
+      - PostBooksMethod
+      - PostCheckoutMethod
+      - PostReturnMethod
     Properties:
       RestApiId: !Ref BookLendingApplicationApi
       Description: Initial deployment of the BookLendingApplication API.
-
+ 
   # API Gateway Stage
   ApiStage:
     Type: AWS::ApiGateway::Stage
@@ -153,7 +217,7 @@ Resources:
       Description: Production stage for BookLendingApplication API.
       RestApiId: !Ref BookLendingApplicationApi
       DeploymentId: !Ref ApiDeployment
-
+ 
   # Permissions for API Gateway to invoke Lambda
   LambdaPermission:
     Type: AWS::Lambda::Permission
@@ -162,7 +226,7 @@ Resources:
       FunctionName: !GetAtt BookLendingApplicationLambdaFunction.Arn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BookLendingApplicationApi}/*/*
-
+ 
 Outputs:
   DynamoDBTableName:
     Description: Name of the DynamoDB table.
@@ -172,4 +236,4 @@ Outputs:
     Value: !Ref BookLendingApplicationLambdaFunction
   ServiceEndpoint:
     Description: The URL of the BookLendingApplication API Gateway endpoint.
-    Value: !Sub https://${BookLendingApplicationApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/books
+    Value: !Sub https://${BookLendingApplicationApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/v1/books

@@ -1,5 +1,6 @@
 ﻿using BookLendingApplication.Models;
 using Microsoft.Extensions.Caching.Memory;
+using System.Collections.Concurrent;
 
 namespace BookLendingApplication.Repositories
 {
@@ -8,14 +9,15 @@ namespace BookLendingApplication.Repositories
     /// </summary>
     public class InMemoryBookRepository : IBookRepository
     {
-        private readonly List<Book> _books = new();
+        private readonly ConcurrentDictionary<Guid, Book> _books = new();
         private const string CacheKey = "InMemoryBookRepository_Books";
-        private IMemoryCache _cache;
+        private readonly IMemoryCache _cache;
 
         public InMemoryBookRepository(IMemoryCache memoryCache)
         {
             _cache = memoryCache;
-            _books = _cache.Get<List<Book>>(CacheKey) ?? new List<Book>();
+          
+            _books = _cache.Get<ConcurrentDictionary<Guid, Book>>(CacheKey) ?? new ConcurrentDictionary<Guid, Book>();
             _cache.Set(CacheKey, _books, TimeSpan.FromMinutes(10));
         }
 
@@ -24,7 +26,7 @@ namespace BookLendingApplication.Repositories
         /// </summary>
         /// <returns>Returns list of books</returns>
         public Task<IEnumerable<Book>> GetAllAsync() =>
-            Task.FromResult(_books.AsEnumerable());
+            Task.FromResult(_books.Values.AsEnumerable());
 
         /// <summary>
         /// Get book by Id
@@ -32,7 +34,7 @@ namespace BookLendingApplication.Repositories
         /// <param name="id">book id</param>
         /// <returns>Returns book</returns>
         public Task<Book?> GetByIdAsync(Guid id) =>
-            Task.FromResult(_books.FirstOrDefault(b => b.Id == id));
+            Task.FromResult(_books.TryGetValue(id, out var book) ? book : null);
 
         /// <summary>
         /// Save book
@@ -41,17 +43,18 @@ namespace BookLendingApplication.Repositories
         /// <returns>Returns book added/updated</returns>
         public Task<Book?> SaveAsync(Book book)
         {
-            var existing = _books.FirstOrDefault(x => x.Id == book.Id);
-            if (existing is not null)
+            _books.AddOrUpdate(book.Id, book, (key, existing) => 
             {
+                existing.Name = book.Name;
+                existing.Author = book.Author;
+                existing.ISBN = book.ISBN;
+                existing.Publisher = book.Publisher;
                 existing.IsAvailable = book.IsAvailable;
-            }
-            else
-            {
-                _books.Add(book);
-                existing = _books.FirstOrDefault(x => x.Id == book.Id);
-            }
-            return Task.FromResult(existing);
+                existing.CheckoutDate = book.CheckoutDate;
+                return existing;
+            });
+            
+            return Task.FromResult(_books.TryGetValue(book.Id, out var savedBook) ? savedBook : null);
         }
     }
 }

@@ -41,7 +41,9 @@ public class BookService : IBookService
     /// <returns>Returns book added</returns>
     public async Task<Book> AddBookAsync(Book book)
     {
-        return await _bookRepository.SaveAsync(book);
+        book.IsAvailable = true; // New books are available by default
+        var savedBook = await _bookRepository.SaveAsync(book);
+        return savedBook ?? throw new InvalidOperationException("Failed to save book");
     }
 
     /// <summary>
@@ -61,8 +63,10 @@ public class BookService : IBookService
     /// <returns>Returns book checked out</returns>
     public async Task<Book> CheckoutAsync(Book book)
     {
-        book.IsAvailable= false;
-        return  await _bookRepository.SaveAsync(book);
+        book.IsAvailable = false;
+        book.CheckoutDate = DateTime.UtcNow;
+        var savedBook = await _bookRepository.SaveAsync(book);
+        return savedBook ?? throw new InvalidOperationException("Failed to checkout book");
     }
 
     /// <summary>
@@ -73,6 +77,8 @@ public class BookService : IBookService
     public async Task<Book> ReturnAsync(Book book)
     {
         book.IsAvailable = true;
-        return await _bookRepository.SaveAsync(book);
+        book.CheckoutDate = default; // Reset checkout date
+        var savedBook = await _bookRepository.SaveAsync(book);
+        return savedBook ?? throw new InvalidOperationException("Failed to return book");
     }
 }

@@ -8,15 +8,17 @@ namespace BookLendingApplication.Controllers;
 /// Controller for managing book lending operations
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v1/[controller]")]
 [Produces("application/json")]
 public class BooksController : ControllerBase
 {
     private readonly IBookService _bookService;
+    private readonly ILogger<BooksController> _logger;
 
-    public BooksController(IBookService bookService)
+    public BooksController(IBookService bookService, ILogger<BooksController> logger)
     {
         _bookService = bookService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -37,7 +39,8 @@ public class BooksController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<IEnumerable<Book>>.Failure(ex.Message, "Failed to retrieve books", 500));
+            _logger.LogError(ex, "Error occurred while retrieving books");
+            return StatusCode(500, ApiResponse<IEnumerable<Book>>.Failure("An error occurred while retrieving books", "Failed to retrieve books", 500));
         }
     }
 
@@ -55,6 +58,11 @@ public class BooksController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<Book>), 500)]
     public async Task<IActionResult> GetBook(Guid id)
     {
+        if (id == Guid.Empty)
+        {
+            return BadRequest(ApiResponse<Book>.Failure("Invalid book ID provided", "Validation failed"));
+        }
+
         try
         {
             var book = await _bookService.GetBookByIdAsync(id);
@@ -64,7 +72,8 @@ public class BooksController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<Book>.Failure(ex.Message, "Failed to retrieve book", 500));
+            _logger.LogError(ex, "Error occurred while retrieving book with ID: {BookId}", id);
+            return StatusCode(500, ApiResponse<Book>.Failure("An error occurred while retrieving the book", "Failed to retrieve book", 500));
         }
     }
 
@@ -80,10 +89,15 @@ public class BooksController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<Book>), 400)]
     public async Task<IActionResult> AddBook(Book book)
     {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ApiResponse<Book>.Failure("Invalid book data provided", "Validation failed"));
+        }
+
         try
         {
-            var bookAvailable = await BookExists(book.Id);
-            if (bookAvailable != null)
+            var existingBook = await GetExistingBook(book.Id);
+            if (existingBook != null)
             {
                 return BadRequest(ApiResponse<Book>.Failure("Book Id already available in records. Please provide different Id"));
             }
@@ -94,7 +108,8 @@ public class BooksController : ControllerBase
         }
         catch (Exception ex)
         {
-            return BadRequest(ApiResponse<Book>.Failure(ex.Message, "Failed to create book"));
+            _logger.LogError(ex, "Error occurred while creating book with ID: {BookId}", book.Id);
+            return BadRequest(ApiResponse<Book>.Failure("An error occurred while creating the book", "Failed to create book"));
         }
     }
 
@@ -110,24 +125,33 @@ public class BooksController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<Book>), 400)]
     public async Task<IActionResult> CheckOutBook(Guid id)
     {
+        if (id == Guid.Empty)
+        {
+            return BadRequest(ApiResponse<Book>.Failure("Invalid book ID provided", "Validation failed"));
+        }
+
         try
         {
-            var book = await BookExists(id);
+            var book = await GetExistingBook(id);
             if (book == null)
             {
                 return NotFound(ApiResponse<Book>.Failure("Book does not exist in records. Please verify Id again."));
             }
 
-            if (!book.IsAvailable) return BadRequest(ApiResponse<Book>.Failure("Book not available for checkout."));
+            if (!book.IsAvailable) 
+            {
+                return BadRequest(ApiResponse<Book>.Failure("Book not available for checkout."));
+            }
 
             var updatedBook = await _bookService.CheckoutAsync(book);
             if (updatedBook == null)
                 return BadRequest(ApiResponse<Book>.Failure("Book not available for checkout.", "Checkout failed"));
-            return Ok(ApiResponse<Book>.Success(book, "Book checked out successfully."));
+            return Ok(ApiResponse<Book>.Success(updatedBook, "Book checked out successfully."));
         }
         catch (Exception ex)
         {
-            return BadRequest(ApiResponse<Book>.Failure(ex.Message, "Failed to checkout book."));
+            _logger.LogError(ex, "Error occurred during checkout for book ID: {BookId}", id);
+            return BadRequest(ApiResponse<Book>.Failure("An error occurred during checkout", "Failed to checkout book."));
         }
     }
 
@@ -143,12 +167,22 @@ public class BooksController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<Book>), 400)]
     public async Task<IActionResult> ReturnBook(Guid id)
     {
+        if (id == Guid.Empty)
+        {
+            return BadRequest(ApiResponse<Book>.Failure("Invalid book ID provided", "Validation failed"));
+        }
+
         try
         {
-            var book = await BookExists(id);
+            var book = await GetExistingBook(id);
             if (book == null)
             {
                 return NotFound(ApiResponse<Book>.Failure("Book does not exist in records. Please re-try with correct book Id."));
+            }
+
+            if (book.IsAvailable)
+            {
+                return BadRequest(ApiResponse<Book>.Failure("Book is already available and was not checked out."));
             }
 
             var updatedBook = await _bookService.ReturnAsync(book);
@@ -158,16 +192,17 @@ public class BooksController : ControllerBase
         }
         catch (Exception ex)
         {
-            return BadRequest(ApiResponse<Book>.Failure(ex.Message, "Failed to return book."));
+            _logger.LogError(ex, "Error occurred during return for book ID: {BookId}", id);
+            return BadRequest(ApiResponse<Book>.Failure("An error occurred during return", "Failed to return book."));
         }
     }
 
     /// <summary>
-    /// Check whether book exists in records
+    /// Get existing book from records
     /// </summary>
     /// <param name="id"></param>
     /// <returns></returns>
-    private async Task<Book?> BookExists(Guid id)
+    private async Task<Book?> GetExistingBook(Guid id)
     {
         return await _bookService.GetBookByIdAsync(id);
     }
